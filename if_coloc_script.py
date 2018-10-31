@@ -3,7 +3,7 @@ import os
 import pandas as pd
 import if_coloc_script_helper_functions as helper
 
-
+# @TODO logical masking would probably be a lot easier and faster than storing snippets of data that Krishna does
 def run_IF_center_average_analysis(metadata_path, FISH_area_thresh=(12, 200), auto_call_foci=True, foci_path='', auto_call_random_foci=True):
     # Directory_name will point to the metadata file that has the following information:
     #
