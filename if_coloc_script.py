@@ -4,7 +4,7 @@ import pandas as pd
 import if_coloc_script_helper_functions as helper
 
 # @TODO logical masking would probably be a lot easier and faster than storing snippets of data that Krishna does
-def run_IF_center_average_analysis(metadata_path, FISH_area_thresh=(12, 200), auto_call_foci=True, foci_path='', auto_call_random_foci=True):
+def run_IF_center_average_analysis(metadata_path, FISH_area_thresh=(12, 200), auto_call_foci_flag=True, foci_path='', auto_call_random_foci_flag=True):
     # Directory_name will point to the metadata file that has the following information:
     #
     # 1. image_directory:  folder under which replicate/different image data sets
@@ -59,11 +59,16 @@ def run_IF_center_average_analysis(metadata_path, FISH_area_thresh=(12, 200), au
         # In units of xy pixels. The size of the z plane is calculated as (size_box) * (x_pixel)/(z_pixel)
         input_params['size_box'] = 25
 
-        if not auto_call_foci:
+        if not auto_call_foci_flag:
             input_params['csv_folder'] = foci_path  # if you want to use already-called foci
             input_params['auto_call_foci_flag'] = False
         else:
             input_params['auto_call_foci_flag'] = True
+
+        if not auto_call_random_foci:
+            input_params['auto_call_random_foci_flag'] = False
+        else:
+            input_params['auto_call_random_foci_flag'] = True
 
         # Rename output dir name with parameters
         input_params['output_dir_name'] = input_params['output_dir_name'] +\
@@ -72,4 +77,17 @@ def run_IF_center_average_analysis(metadata_path, FISH_area_thresh=(12, 200), au
 
         # generate output
         helper.generate_output(input_params)
+
+        # generate random foci
+        if auto_call_random_foci_flag:
+            random_foci_dir = os.path.join(os.path.dirname(input_params['dir_name']), 'Random_foci_auto')
+
+            input_params['random_foci_dir'] = random_foci_dir
+
+            if not os.path.isdir(random_foci_dir):
+                os.mkdir(random_foci_dir)
+
+            auto_call_random_foci(input_params)
+
+
 
