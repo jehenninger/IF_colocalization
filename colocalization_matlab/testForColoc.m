@@ -1,4 +1,4 @@
-function [rho] = testForColoc(channel_1_file, channel_2_file, mask_array, draw_graph, graph_title)
+function [rho] = testForColoc(channel_1_file, channel_2_file, mask_array, draw_graph, graph_title, savePath)
 
 % mask_array is the output of get_nuclear_mask. It is a cell array of
 % nuclei masks of all z-slices, but only 10 of the most in-focus z-slices
@@ -72,7 +72,7 @@ if draw_graph == 1
     graph_title = strrep(graph_title, '_', ' ');
     title(graph_title);
     
-    savePath = '/Users/jon/data_analysis/young/20181003_Image_set_for_IF_coloc_from_John/20180914_image_outputs';
+    %savePath = '/Users/jon/data_analysis/young/20181003_Image_set_for_IF_coloc_from_John/20180914_image_outputs';
     saveas(gcf, fullfile(savePath,[graph_title,'_', channel_1_name, '_v_', channel_2_name, '.png']));
     saveas(gcf, fullfile(savePath,[graph_title,'_', channel_1_name, '_v_', channel_2_name, '.eps']))
     close(gcf);

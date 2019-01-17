@@ -9,6 +9,16 @@
 % any groups that contain other groups will give issues. Best for now to
 % just give unique names to things.
 
+% Note: Metadata file must be in same folder as images
+% Metadata file organized with the following columns in order:
+%
+% image_name         :    the exact name of the image with '.TIF' on the end. No
+% upstream path
+%
+% channel            :    either 'mask', '1', '2', or '3'
+% experimental_group :    unique name for that experiment
+% replicate          :    integer number referring to replicate, '1', '2' ,'3',
+% etc...
 
 %% read in metadata file
 close all
@@ -21,6 +31,13 @@ metadata(cellfun(@(x) isnumeric(x) && isnan(x), metadata)) = {[]};
 metadata = metadata(~all(cellfun('isempty', metadata), 2), :); % gets rid of weird Excel artifacts when there are NaN cells
 
 [data_path, ~, ~] = fileparts(metadata_file);
+
+savePath = [data_path '/coloc_output'];
+
+if ~isfolder(savePath)
+    mkdir(savePath);
+end
+
 
 % get unique experimental groups
 experimental_groups = metadata(2:end,3);
@@ -93,13 +110,13 @@ for ii = 1:num_of_experimental_groups
                 rho{rho_count+2, 1} = [experimental_group_name, '_C2vC3'];
             end
             
-            rho{rho_count, jj+1} = testForColoc(channel_1_file, channel_2_file, mask_array, draw_flag, experimental_group_name);
+            rho{rho_count, jj+1} = testForColoc(channel_1_file, channel_2_file, mask_array, draw_flag, experimental_group_name, savePath);
             rho_count = rho_count + 1; %these count the rows in the rho output to just concatenate everything
             
-            rho{rho_count, jj+1} = testForColoc(channel_1_file, channel_3_file, mask_array, draw_flag, experimental_group_name);
+            rho{rho_count, jj+1} = testForColoc(channel_1_file, channel_3_file, mask_array, draw_flag, experimental_group_name, savePath);
             rho_count = rho_count + 1;
             
-            rho{rho_count, jj+1} = testForColoc(channel_2_file, channel_3_file, mask_array, draw_flag, experimental_group_name);
+            rho{rho_count, jj+1} = testForColoc(channel_2_file, channel_3_file, mask_array, draw_flag, experimental_group_name, savePath);
             
             if jj < num_of_replicates % this will fill in the replicates for the multicomparison the correct way
                 rho_count = rho_count - 2;
@@ -120,7 +137,7 @@ for ii = 1:num_of_experimental_groups
             
             rho{rho_count, 1} = [experimental_group_name, '_C1vC2'];
             
-            rho{rho_count, jj+1} = testForColoc(channel_1_file, channel_2_file, mask_array, draw_flag, experimental_group_name); %1 to draw graphs
+            rho{rho_count, jj+1} = testForColoc(channel_1_file, channel_2_file, mask_array, draw_flag, experimental_group_name, savePath); %1 to draw graphs
             
             [~, channel_1_name, ~] = fileparts(channel_1_file);
             [~, channel_2_name, ~] = fileparts(channel_2_file);
