@@ -12,8 +12,6 @@ import methods
 import grapher
 
 # @TODO: Make heatmap of colocalization for easy representative figure generation
-# @TODO: Fix replicate number
-# @TODO: Fix channel names so that they are numbers instead of strings for Excel
 # @TODO: Make image and graph outputs
 
 # NOTE: If python/matplotlib cannot find the correct font, then run the following in the python console:
@@ -76,6 +74,7 @@ for folder in dir_list:  # folder is a separate experiment
                 replicate_files = [r for r in file_list if sample_name in r
                                    and os.path.isfile(os.path.join(input_params.parent_dir, folder, r))]
 
+                replicate_files.sort(reverse=False)
                 data = methods.load_images(replicate_files, input_params, folder)
                 data.output_directories = output_dirs
 
@@ -88,14 +87,14 @@ for folder in dir_list:  # folder is a separate experiment
                     individual_replicate_output, data = methods.analyze_replicate(data, input_params,
                                                                                   individual_replicate_output,
                                                                                   channel_a_idx=0, channel_b_idx=2)
+                    input_params.replicate_count_idx += 1
+
                 else:
                     individual_replicate_output, data = methods.analyze_replicate(data, input_params, individual_replicate_output)
-
-
+                    input_params.replicate_count_idx += 1
 
             if len(individual_replicate_output) > 0:
                 individual_replicate_output.to_excel(replicate_writer, sheet_name=folder[0:15], index=False)
-                input_params.replicate_count_idx += 1
 
 try:
     replicate_writer = methods.adjust_excel_column_width(replicate_writer, individual_replicate_output)

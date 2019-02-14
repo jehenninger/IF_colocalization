@@ -109,16 +109,25 @@ def analyze_replicate(data, input_params, individual_replicate_output, channel_a
 
     # get nuclear mask
     nuclear_mask = find_nucleus(data.nucleus_image, input_params)
+    data.nuclear_mask = nuclear_mask
 
     # find and subtract backgrounds of IF channels
-    image_a, image_b = data.protein_images[channel_a_idx], data.protein_images[channel_b_idx]
-    data.image_a_orig, data.image_b_orig = image_a, image_b
-    channel_a, channel_b = data.protein_channel_names[channel_a_idx], data.protein_channel_names[channel_b_idx]
+    image_a = data.protein_images[channel_a_idx]
+    image_a = img_as_float(image_a)
+
+    image_b = data.protein_images[channel_b_idx]
+    image_b = img_as_float(image_b)
+
+    data.image_a_orig = image_a
+    data.image_b_orig = image_b
+    channel_a = data.protein_channel_names[channel_a_idx]
+    channel_b = data.protein_channel_names[channel_b_idx]
 
     image_a_bsub, threshold_a = subtract_background(image_a, input_params)
     image_b_bsub, threshold_b = subtract_background(image_b, input_params)
 
-    data.image_a_bsub, data.image_b_bsub = image_a_bsub, image_b_bsub
+    # data.image_a_bsub = image_a_bsub
+    # data.image_b_bsub = image_b_bsub  # IMPORTANT: This gets over-written with multichannel comparisons
 
     # filter on nuclear pixels
     image_a_bsub_filt = image_a_bsub[nuclear_mask]
@@ -148,8 +157,8 @@ def analyze_replicate(data, input_params, individual_replicate_output, channel_a
 
     individual_replicate_output = individual_replicate_output.append({'sample'         : data.sample_name,
                                                                       'replicate'      : input_params.replicate_count_idx,
-                                                                      'channel_a'      : channel_a,
-                                                                      'channel_b'      : channel_b,
+                                                                      'channel_a'      : int(channel_a),
+                                                                      'channel_b'      : int(channel_b),
                                                                       'pearson_rho'    : p_rho,
                                                                       'pearson_p-val'  : p_pval,
                                                                       'spearman_rho'   : s_rho,
@@ -157,6 +166,10 @@ def analyze_replicate(data, input_params, individual_replicate_output, channel_a
                                                                       'manders_1'      : m_rho_a,
                                                                       'manders_2'      : m_rho_b},
                                                                      ignore_index=True)
+
+    # generate output images and save them
+    grapher.make_output_images(data, nuclear_mask, image_a, image_b, image_a_bsub, image_b_bsub,
+                               input_params, channel_a, channel_b)
 
     return individual_replicate_output, data
 
@@ -194,21 +207,20 @@ def find_nucleus(image, input_params):
     nuclear_mask = np.full(shape=image.shape, fill_value=False, dtype=bool)
     nuclear_mask[clusters_all == nuclear_cluster] = True
 
-    # # simple thresholding
-    # mean_intensity = np.mean(image)
-    # std_intensity = np.std(image)
+    # # # simple thresholding
+    # mean_intensity = np.mean(image_sample_1d)
+    # std_intensity = np.std(image_sample_1d)
     #
-    # threshold = mean_intensity + (std_intensity * threshold_multiplier)
-    # nuclear_mask[image > threshold] = 1
+    # threshold = mean_intensity + (std_intensity * 0.8)
+    # nuclear_mask = np.full(shape=image.shape, fill_value=False, dtype=bool)
+    # nuclear_mask[np.where(image > threshold)] = True
+
+    nuclear_binary = nd.morphology.binary_dilation(nuclear_mask)
 
     nuclear_binary = nd.morphology.binary_fill_holes(nuclear_mask)
 
     nuclear_binary = nd.binary_erosion(nuclear_binary)  # to try to get rid of touching nuclei. Need to do better!
-    nuclear_binary = nd.binary_erosion(nuclear_binary)
-    nuclear_binary = nd.binary_erosion(nuclear_binary)
-    nuclear_binary = nd.binary_erosion(nuclear_binary)
-    nuclear_binary = nd.binary_erosion(nuclear_binary)
-    nuclear_binary = nd.binary_erosion(nuclear_binary)
+
 
     # nuclear_binary_labeled, num_of_regions = nd.label(nuclear_binary)
 
@@ -241,11 +253,6 @@ def get_sample_name(nd_file_name):
     sample_name, ext = os.path.splitext(nd_file_name)
 
     return sample_name
-
-
-def clear_axis_ticks(ax):
-    ax.get_xaxis().set_ticks([])
-    ax.get_yaxis().set_ticks([])
 
 
 def adjust_excel_column_width(writer, output):
@@ -289,7 +296,7 @@ def subtract_background(input_image, input_params):
     background_threshold = background_threshold + (image_std * threshold_multiplier)
 
     output_image = input_image - background_threshold
-    output_image[output_image < 0] = 0
+    output_image[output_image < 0.0] = 0.0
 
     # output_image = np.reshape(output_image, input_image.shape)
     return output_image, background_threshold
