@@ -79,9 +79,10 @@ def make_output_images(data, nuclear_mask, image_a, image_b, image_a_bsub, image
     ax[1, 1].set_title('Thresh_IF_channel_' + str(channel_b_name), master_font_dict)
 
     # multiply images and generate heatmap
+    vmax = 30
     heatmap_image = multiply_images(image_a_thresh, image_b_thresh)
 
-    ax[1, 2].imshow(heatmap_image, cmap='magma')
+    ax[1, 2].imshow(heatmap_image, cmap='magma', vmin=0, vmax=vmax)
     ax[1, 2].set_title('Co-localization', master_font_dict)
 
     # clear axis ticks
@@ -113,6 +114,9 @@ def rescale_image(image):
 def multiply_images(image_a, image_b):
     # assuming that image_a and image_b are floats
 
+    image_a = standardize(image_a)
+    image_b = standardize(image_b)
+
     combined_image = np.multiply(image_a, image_b)
 
     return combined_image
@@ -121,3 +125,10 @@ def multiply_images(image_a, image_b):
 def clear_axis_ticks(ax):
     ax.get_xaxis().set_ticks([])
     ax.get_yaxis().set_ticks([])
+
+def standardize(img):
+    mean = np.mean(img)
+    std = np.std(img)
+    img = (img - mean) / std
+
+    return img

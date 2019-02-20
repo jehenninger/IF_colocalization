@@ -18,6 +18,9 @@ import grapher
 
 # @TODO Handle cases where there isn't a nuclear stain
 # @TODO maybe make scatter outputs of the thresholds and intensities
+# @TODO Handle cases where the image mask is NaN because the 5% threshold got rid of everything in the nucleus
+# This happens because some of the stains have very bright cytoplasmic stuff and we calculate the threshold on
+# the whole image.
 
 # NOTE: If python/matplotlib cannot find the correct font, then run the following in the python console:
 # matplotlib.font_manager._rebuild()
