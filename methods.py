@@ -9,7 +9,7 @@ from scipy import ndimage as nd
 from scipy import stats as st
 import numpy as np
 import pandas as pd
-from skimage import img_as_float, img_as_uint, morphology, measure, color
+from skimage import img_as_float, img_as_uint, morphology, measure, color, filters
 from sklearn.cluster import KMeans
 from datetime import datetime
 import math
@@ -26,9 +26,12 @@ def parse_arguments(parser):
 
     # optional arguments
     parser.add_argument("--tm", type=float, default=1.5)  # for background subtraction. Background + std*tm
+    parser.add_argument("--bG", type=float)  # hard-coded background value for 488 GFP channel (float! 0-1)
+    parser.add_argument("--bR", type=float)  # hard-coded background value for 561 RFP channel (float! 0-1)
+    parser.add_argument("--bFR", type=float) # hard-coded background value for 642 Far-red channel (float! 0-1)
 
     # flags
-    # parser.add_argument("--manual", dest="autocall_flag", action="store_false", default=True)
+    parser.add_argument("--no-thresh", dest="threshold_flag", action="store_false", default=True)
 
     input_params = parser.parse_args()
 
@@ -123,19 +126,16 @@ def analyze_replicate(data, input_params, individual_replicate_output, channel_a
     channel_a = data.protein_channel_names[channel_a_idx]
     channel_b = data.protein_channel_names[channel_b_idx]
 
-    image_a_bsub, threshold_a = subtract_background(image_a, input_params)
-    image_b_bsub, threshold_b = subtract_background(image_b, input_params)
-
-    # data.image_a_bsub = image_a_bsub
-    # data.image_b_bsub = image_b_bsub  # IMPORTANT: This gets over-written with multichannel comparisons
+    image_a_bsub, threshold_a = subtract_background(image_a, channel_a, input_params)
+    image_b_bsub, threshold_b = subtract_background(image_b, channel_b, input_params)
 
     # filter on nuclear pixels
-    image_a_bsub_filt = image_a_bsub[nuclear_mask]
-    image_b_bsub_filt = image_b_bsub[nuclear_mask]
+    image_a_filt = image_a_bsub[nuclear_mask]
+    image_b_filt = image_b_bsub[nuclear_mask]
 
     # make it 1D for statistics
-    image_a_1D = image_a_bsub_filt.reshape((-1, 1))
-    image_b_1D = image_b_bsub_filt.reshape((-1, 1))
+    image_a_1D = image_a_filt.reshape((-1, 1))
+    image_b_1D = image_b_filt.reshape((-1, 1))
 
     # Pearson correlation
     p_rho, p_pval = st.pearsonr(image_a_1D, image_b_1D)
@@ -180,32 +180,47 @@ def find_nucleus(image, input_params):
     # for co_IF analysis, we will do a blurring, then maximum intensity projection, then clustering of pixels into
     # 2 clusters with k-means. From this, we will then cluster the entire image/z-stack using this clustering solution
 
+    # new
     image = nd.gaussian_filter(image, sigma=2.0)
-    image_sample = max_project(image)  # max project the image because we just care about finding nuclei
-    image_sample = img_as_float(image_sample)
-    image = img_as_float(image)
-    # threshold_multiplier = 0.25
+    image_shape = image.shape
+    image_r = image_shape[1]
+    image_c = image_shape[2]
+    image_z = image_shape[0]
+    image = max_project(image)
+    nuc_threshold = filters.threshold_otsu(image)
 
-    # trial method. Use K-means clustering on image to get nuclear pixels
-    image_sample_1d = image_sample.reshape((-1, 1))
-    #
-    cluster_solution = KMeans(n_clusters=2, random_state=0).fit(image_sample_1d)
-    clusters = cluster_solution.predict(image_sample_1d)
-    #
-    cluster_mean = []
-    for c in range(2):
-        cluster_mean.append(np.mean(image_sample_1d[clusters == c]))
+    nuclear_mask_2D = np.full((image_r, image_c), fill_value=False, dtype=bool)
+    nuclear_mask_2D[np.where(image > nuc_threshold)] = True
 
-    nuclear_cluster = np.argmax(cluster_mean)
+    nuclear_mask = np.broadcast_to(nuclear_mask_2D, image_shape)
+
+    # # old @Deprecated
+    # image = nd.gaussian_filter(image, sigma=2.0)
+    # image_sample = max_project(image)  # max project the image because we just care about finding nuclei
+    # image_sample = img_as_float(image_sample)
+    # image = img_as_float(image)
+    # # threshold_multiplier = 0.25
+    #
+    # # trial method. Use K-means clustering on image to get nuclear pixels
+    # image_sample_1d = image_sample.reshape((-1, 1))
+    # #
+    # cluster_solution = KMeans(n_clusters=2, random_state=0).fit(image_sample_1d)
+    # clusters = cluster_solution.predict(image_sample_1d)
+    # #
+    # cluster_mean = []
+    # for c in range(2):
+    #     cluster_mean.append(np.mean(image_sample_1d[clusters == c]))
+    #
+    # nuclear_cluster = np.argmax(cluster_mean)
 
     # now use clustering solution on the entire z-stack image
-    image_1d = image.reshape((-1, 1))
+    #image_1d = new_image.reshape((-1, 1))
 
-    clusters_all = cluster_solution.predict(image_1d)
+    #clusters_all = cluster_solution.predict(image_1d)
 
-    clusters_all = np.reshape(clusters_all, newshape=image.shape)
-    nuclear_mask = np.full(shape=image.shape, fill_value=False, dtype=bool)
-    nuclear_mask[clusters_all == nuclear_cluster] = True
+    #clusters_all = np.reshape(clusters_all, newshape=image.shape)
+    #nuclear_mask = np.full(shape=image.shape, fill_value=False, dtype=bool)
+    #nuclear_mask[clusters_all == nuclear_cluster] = True
 
     # # # simple thresholding
     # mean_intensity = np.mean(image_sample_1d)
@@ -284,19 +299,46 @@ def write_output_params(input_params):
         file.write(json.dumps(input_params, default=str))
 
 
-def subtract_background(input_image, input_params):
-    image_hist, image_bin_edges = np.histogram(input_image, bins='auto')
+def subtract_background(input_image, channel_name, input_params):
 
-    max_image = max_project(input_image)
-    image_std = np.std(max_image)
+    auto_flag = True
+    if '488' in channel_name:
+        if input_params.bG:
+            background_threshold = input_params.bG/65536
+            auto_flag = False
+    elif '561' in channel_name:
+        if input_params.bR:
+            background_threshold = input_params.bR/65536
+            auto_flag = False
+    elif '642' in channel_name:
+        if input_params.bFR:
+            background_threshold = input_params.bFR/65536
+            auto_flag = False
 
-    threshold_multiplier = input_params.tm
+    if auto_flag:
+        if input_params.threshold_flag:
+            # New way using top 5% of pixels
+            max_image = max_project(input_image)
+            background_threshold = np.percentile(max_image, 95)
 
-    background_threshold = image_bin_edges[np.argmax(image_hist)]  # assumes that the max hist peak corresponds to background pixels
-    background_threshold = background_threshold + (image_std * threshold_multiplier)
+            # Old way using histogram
+            # image_hist, image_bin_edges = np.histogram(input_image, bins='auto')
+            #
+            # max_image = max_project(input_image)
+            # image_std = np.std(max_image)
+            #
+            # threshold_multiplier = input_params.tm
+            #
+            # background_threshold = image_bin_edges[np.argmax(image_hist)]  # assumes that the max hist peak corresponds to background pixels
+            # background_threshold = background_threshold + (image_std * threshold_multiplier)
+        else:
+            background_threshold = 0.0
+    else:
+        print('ERROR: Something wrong with subtract_background')
+        sys.exit(0)
 
     output_image = input_image - background_threshold
-    output_image[output_image < 0.0] = 0.0
+    output_image[np.where(output_image < 0.0)] = 0.0
 
     # output_image = np.reshape(output_image, input_image.shape)
     return output_image, background_threshold

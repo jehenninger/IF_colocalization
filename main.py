@@ -1,3 +1,4 @@
+#!/Users/jon/PycharmProjects/IF_colocalization/venv/bin/python
 # #!/lab/solexa_young/scratch/jon_henninger/tools/venv/bin/python
 
 import matplotlib
@@ -11,8 +12,12 @@ matplotlib.rcParams['font.family'] = 'sans-serif'
 import methods
 import grapher
 
-# @TODO: Make heatmap of colocalization for easy representative figure generation
-# @TODO: Make image and graph outputs
+# inputs:
+# parent_dir    :    directory with sub-folders of replicates. Only DATA!
+# output_dir    :    directory where to put the output
+
+# @TODO Handle cases where there isn't a nuclear stain
+# @TODO maybe make scatter outputs of the thresholds and intensities
 
 # NOTE: If python/matplotlib cannot find the correct font, then run the following in the python console:
 # matplotlib.font_manager._rebuild()
