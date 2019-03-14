@@ -102,7 +102,7 @@ for folder in dir_list:  # folder is a separate experiment
                     input_params.replicate_count_idx += 1
 
             if len(individual_replicate_output) > 0:
-                individual_replicate_output.to_excel(replicate_writer, sheet_name=folder[0:15], index=False)
+                individual_replicate_output.to_excel(replicate_writer, sheet_name=folder[0:20], index=False)
 
 try:
     replicate_writer = methods.adjust_excel_column_width(replicate_writer, individual_replicate_output)
