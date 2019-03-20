@@ -46,24 +46,27 @@ def make_output_images(data, nuclear_mask, image_a, image_b, image_a_bsub, image
 
     fig, ax = plt.subplots(2, 3, figsize=(10, 7.5))
 
-    # plot nucleus image with mask
-    nucleus_image = exposure.equalize_adapthist(methods.max_project(data.nucleus_image))
-    nuclear_overlay = np.sum(nuclear_mask, axis=0)
-    nuclear_overlay[nuclear_overlay > 0] = 1
-    nucleus_label_overlay = color.label2rgb(nuclear_overlay, image=nucleus_image,
-                                            alpha=master_alpha, image_alpha=1, bg_label=master_bg_label)
-    ax[0, 2].imshow(nucleus_label_overlay)
-    ax[0, 2].set_title('nucleus mask', master_font_dict)
+    if nuclear_mask is not None:
+        # plot nucleus image with mask
+        nucleus_image = exposure.equalize_adapthist(methods.max_project(data.nucleus_image))
+        nuclear_overlay = np.sum(nuclear_mask, axis=0)
+        nuclear_overlay[nuclear_overlay > 0] = 1
+        nucleus_label_overlay = color.label2rgb(nuclear_overlay, image=nucleus_image,
+                                                alpha=master_alpha, image_alpha=1, bg_label=master_bg_label)
+        ax[0, 2].imshow(nucleus_label_overlay)
+        ax[0, 2].set_title('nucleus mask', master_font_dict)
 
     # plot IF channels
     image_a = methods.max_project(image_a)
     image_a_thresh = image_a_bsub
-    image_a_thresh[np.invert(nuclear_mask)] = 0
+    if data.nucleus_flag:
+        image_a_thresh[np.invert(nuclear_mask)] = 0
     image_a_thresh = methods.max_project(image_a_thresh)
 
     image_b = methods.max_project(image_b)
     image_b_thresh = image_b_bsub
-    image_b_thresh[np.invert(nuclear_mask)] = 0
+    if data.nucleus_flag:
+        image_b_thresh[np.invert(nuclear_mask)] = 0
     image_b_thresh = methods.max_project(image_b_thresh)
 
     ax[0, 0].imshow(rescale_image(image_a))

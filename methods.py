@@ -75,17 +75,23 @@ def load_images(replicate_files, input_params, parent_dir):
 
     # load images
     nucleus_image_file = [f for f in replicate_files if all(['405 DAPI' in f, get_file_extension(f) == '.TIF'])]
-    if len(nucleus_image_file) < 1:
-        print('Error: Could not find nucleus image file')
-        sys.exit(0)
+    data.nucleus_flag = False
+    if len(nucleus_image_file) > 0:
+        data.nucleus_flag = True
 
-    nucleus_image_path = os.path.join(input_params.parent_dir, parent_dir, nucleus_image_file[0])
-    nucleus_image = io.volread(nucleus_image_path)  # image is [z, x, y] array
-    data.nucleus_image = nucleus_image
+    if data.nucleus_flag:
+        nucleus_image_path = os.path.join(input_params.parent_dir, parent_dir, nucleus_image_file[0])
+        nucleus_image = io.volread(nucleus_image_path)  # image is [z, x, y] array
+        data.nucleus_image = nucleus_image
 
-    protein_image_files = [p for p in replicate_files if
-                           all(['405 DAPI' not in p,
-                                get_file_extension(p) == '.TIF'])]
+    if data.nucleus_flag:
+        protein_image_files = [p for p in replicate_files if
+                               all(['405 DAPI' not in p,
+                                    get_file_extension(p) == '.TIF'])]
+    else:
+        protein_image_files = [p for p in replicate_files if
+                               all([get_file_extension(p) == '.TIF'])]
+
     if len(protein_image_files) < 1:
         print('Error: Could not find protein image files')
         sys.exit(0)
@@ -96,7 +102,8 @@ def load_images(replicate_files, input_params, parent_dir):
     for idx, p in enumerate(protein_image_files):
         protein_image_paths.append(os.path.join(input_params.parent_dir, parent_dir, p))
         protein_channel_names.append(find_image_channel_name(p))
-        protein_images.append(io.volread(protein_image_paths[idx]))
+        temp_p_image = io.volread(protein_image_paths[idx])
+        protein_images.append(temp_p_image)
 
     data.protein_images = protein_images
     data.protein_channel_names = protein_channel_names
@@ -110,9 +117,12 @@ def load_images(replicate_files, input_params, parent_dir):
 
 def analyze_replicate(data, input_params, individual_replicate_output, channel_a_idx=0, channel_b_idx=1):
 
-    # get nuclear mask
-    nuclear_mask = find_nucleus(data.nucleus_image, input_params)
-    data.nuclear_mask = nuclear_mask
+    if data.nucleus_flag:
+        # get nuclear mask
+        nuclear_mask = find_nucleus(data.nucleus_image, input_params)
+        data.nuclear_mask = nuclear_mask
+    else:
+        nuclear_mask = None
 
     # find and subtract backgrounds of IF channels
     image_a = data.protein_images[channel_a_idx]
@@ -129,9 +139,13 @@ def analyze_replicate(data, input_params, individual_replicate_output, channel_a
     image_a_bsub, threshold_a = subtract_background(image_a, channel_a, input_params)
     image_b_bsub, threshold_b = subtract_background(image_b, channel_b, input_params)
 
-    # filter on nuclear pixels
-    image_a_filt = image_a_bsub[nuclear_mask]
-    image_b_filt = image_b_bsub[nuclear_mask]
+    if data.nucleus_flag:
+        # filter on nuclear pixels
+        image_a_filt = image_a_bsub[nuclear_mask]
+        image_b_filt = image_b_bsub[nuclear_mask]
+    else:
+        image_a_filt = image_a_bsub
+        image_b_filt = image_b_bsub
 
     # make it 1D for statistics
     image_a_1D = image_a_filt.reshape((-1, 1))
@@ -246,7 +260,13 @@ def find_nucleus(image, input_params):
 
 
 def max_project(image):
-    projection = np.max(image, axis=0)
+    if len(image.shape) < 3:
+        projection = image
+    elif len(image.shape) == 3:
+        projection = np.max(image, axis=0)
+    else:
+        print('ERROR: Image to max project is neither 2D nor 3D')
+        sys.exit(0)
 
     return projection
 
@@ -354,3 +374,8 @@ def find_manders_coeff(image, mask):
     coeff = r_co/r_total
 
     return coeff
+
+def convert_2D_image_to_3D(img):
+    output_img = np.repeat(img[np.newaxis,:,:], 1, axis=0)
+
+    return output_img
